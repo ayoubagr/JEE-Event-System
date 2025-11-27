@@ -43,4 +43,25 @@ public class ReservationController {
 
         return savedReservation;
     }
+
+    // Endpoint appelé par le Payment-Service via OpenFeign
+    @PutMapping("/{id}/confirm")
+    public void confirmReservation(@PathVariable Long id) {
+        // 1. Chercher la réservation
+        Reservation reservation = reservationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Réservation introuvable !"));
+
+        // 2. Changer le statut
+        reservation.setStatus("CONFIRMED");
+
+        // 3. Sauvegarder
+        reservationRepository.save(reservation);
+    }
+
+    // Endpoint pour consulter une réservation par son ID
+    @GetMapping("/{id}")
+    public Reservation getReservation(@PathVariable Long id) {
+        return reservationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Réservation introuvable !"));
+    }
 }
