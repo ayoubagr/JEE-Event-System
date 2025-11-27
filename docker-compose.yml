@@ -1,0 +1,33 @@
+version: '3.8'
+services:
+  mysql-event:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: db_event
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+
+  mysql-reservation:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: db_reservation
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+
+  mysql-user:
+      image: mysql:8.0
+      environment:
+        MYSQL_DATABASE: db_user
+        MYSQL_ROOT_PASSWORD: root
+      ports:
+        - "3308:3306"
+
+  mysql-payment:
+      image: mysql:8.0
+      environment:
+        MYSQL_DATABASE: db_payment
+        MYSQL_ROOT_PASSWORD: root
+      ports:
+        - "3309:3306"
