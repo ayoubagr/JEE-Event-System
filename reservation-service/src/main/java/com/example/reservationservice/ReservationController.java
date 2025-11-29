@@ -15,6 +15,10 @@ public class ReservationController {
     @Autowired
     private RestTemplate restTemplate;
 
+    // Injection du Client Feign pour les notifications (BONUS)
+    @Autowired
+    private NotificationRestClient notificationRestClient;
+
     // URL du service événement (via Eureka)
     private final String EVENT_SERVICE_URL = "http://event-service/events/";
 
@@ -25,8 +29,7 @@ public class ReservationController {
     @CircuitBreaker(name = "eventService", fallbackMethod = "fallbackReserver")
     public Reservation reserver(@RequestBody Reservation reservation) {
 
-        // ÉTAPE A : Appel au Micro-service Event (C'est ici que ça peut casser !)
-        // On récupère les infos de l'événement
+        // ÉTAPE A : Appel au Micro-service Event
         EventDTO event = restTemplate.getForObject(EVENT_SERVICE_URL + reservation.getEventId(), EventDTO.class);
 
         // ÉTAPE B : Vérifications Métier
@@ -51,35 +54,47 @@ public class ReservationController {
     // ---------------------------------------------------------
     // 2. MÉTHODE DE SECOURS (FALLBACK)
     // ---------------------------------------------------------
-    // Cette méthode est appelée automatiquement si "event-service" est en panne.
-    // Elle DOIT avoir la même signature que la méthode 'reserver' + un paramètre Throwable.
     public Reservation fallbackReserver(Reservation reservation, Throwable t) {
         Reservation r = new Reservation();
         r.setUserId(reservation.getUserId());
         r.setEventId(reservation.getEventId());
         r.setNombrePlaces(reservation.getNombrePlaces());
-
-        // On indique clairement que ça a échoué à cause du service tiers
         r.setStatus("FAILED_EVENT_SERVICE_DOWN");
-
-        // On retourne cet objet "vide" pour ne pas planter l'application avec une erreur 500
         return r;
     }
 
     // ---------------------------------------------------------
-    // 3. CONFIRMER UNE RÉSERVATION (Appelé par Payment-Service)
+    // 3. CONFIRMER UNE RÉSERVATION + NOTIFICATION (BONUS)
     // ---------------------------------------------------------
     @PutMapping("/{id}/confirm")
     public void confirmReservation(@PathVariable Long id) {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Réservation introuvable !"));
 
+        // Mise à jour du statut
         reservation.setStatus("CONFIRMED");
         reservationRepository.save(reservation);
+
+        // --- DÉBUT CODE BONUS : ENVOI NOTIFICATION ---
+        try {
+            // Création du message
+            NotificationRequest req = new NotificationRequest();
+            req.setEmail("client_user_" + reservation.getUserId() + "@gmail.com");
+            req.setMessage("Félicitations ! Votre réservation N°" + reservation.getId() + " est validée.");
+
+            // Appel au micro-service Notification via OpenFeign
+            notificationRestClient.sendNotification(req);
+
+        } catch (Exception e) {
+            // Important : On met un try-catch pour ne pas bloquer la confirmation
+            // si le service de notification est en panne.
+            System.err.println("Erreur lors de l'envoi de la notification : " + e.getMessage());
+        }
+        // --- FIN CODE BONUS ---
     }
 
     // ---------------------------------------------------------
-    // 4. CONSULTER UNE RÉSERVATION (Pour vérifier le statut)
+    // 4. CONSULTER UNE RÉSERVATION
     // ---------------------------------------------------------
     @GetMapping("/{id}")
     public Reservation getReservation(@PathVariable Long id) {
