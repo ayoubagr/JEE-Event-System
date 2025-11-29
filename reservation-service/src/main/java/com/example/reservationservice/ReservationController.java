@@ -1,8 +1,9 @@
 package com.example.reservationservice;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @RestController
 @RequestMapping("/reservations")
@@ -12,19 +13,23 @@ public class ReservationController {
     private ReservationRepository reservationRepository;
 
     @Autowired
-    private RestTemplate restTemplate; // Celui qu'on a configuré avec @LoadBalanced
+    private RestTemplate restTemplate;
 
-    // On utilise le NOM du service enregistré dans Eureka
+    // URL du service événement (via Eureka)
     private final String EVENT_SERVICE_URL = "http://event-service/events/";
 
+    // ---------------------------------------------------------
+    // 1. CRÉER UNE RÉSERVATION (AVEC CIRCUIT BREAKER)
+    // ---------------------------------------------------------
     @PostMapping
+    @CircuitBreaker(name = "eventService", fallbackMethod = "fallbackReserver")
     public Reservation reserver(@RequestBody Reservation reservation) {
 
-        // 1. Appel Synchrone : On demande à event-service les infos de l'événement
-        // On concatène l'URL : http://event-service/events/1
+        // ÉTAPE A : Appel au Micro-service Event (C'est ici que ça peut casser !)
+        // On récupère les infos de l'événement
         EventDTO event = restTemplate.getForObject(EVENT_SERVICE_URL + reservation.getEventId(), EventDTO.class);
 
-        // 2. Vérifications
+        // ÉTAPE B : Vérifications Métier
         if (event == null) {
             throw new RuntimeException("Événement introuvable !");
         }
@@ -33,32 +38,49 @@ public class ReservationController {
             throw new RuntimeException("Désolé, plus assez de places !");
         }
 
-        // 3. Créer la réservation
+        // ÉTAPE C : Sauvegarde en base locale (PENDING)
         reservation.setStatus("PENDING");
         Reservation savedReservation = reservationRepository.save(reservation);
 
-        // 4. (Bonus) Mettre à jour le stock dans l'autre service via un appel PUT
-        // On appelle l'endpoint qu'on a créé tout à l'heure : /events/{id}/decrement?count=X
+        // ÉTAPE D : Mise à jour du stock dans l'autre service (Appel PUT)
         restTemplate.put(EVENT_SERVICE_URL + reservation.getEventId() + "/decrement?count=" + reservation.getNombrePlaces(), null);
 
         return savedReservation;
     }
 
-    // Endpoint appelé par le Payment-Service via OpenFeign
+    // ---------------------------------------------------------
+    // 2. MÉTHODE DE SECOURS (FALLBACK)
+    // ---------------------------------------------------------
+    // Cette méthode est appelée automatiquement si "event-service" est en panne.
+    // Elle DOIT avoir la même signature que la méthode 'reserver' + un paramètre Throwable.
+    public Reservation fallbackReserver(Reservation reservation, Throwable t) {
+        Reservation r = new Reservation();
+        r.setUserId(reservation.getUserId());
+        r.setEventId(reservation.getEventId());
+        r.setNombrePlaces(reservation.getNombrePlaces());
+
+        // On indique clairement que ça a échoué à cause du service tiers
+        r.setStatus("FAILED_EVENT_SERVICE_DOWN");
+
+        // On retourne cet objet "vide" pour ne pas planter l'application avec une erreur 500
+        return r;
+    }
+
+    // ---------------------------------------------------------
+    // 3. CONFIRMER UNE RÉSERVATION (Appelé par Payment-Service)
+    // ---------------------------------------------------------
     @PutMapping("/{id}/confirm")
     public void confirmReservation(@PathVariable Long id) {
-        // 1. Chercher la réservation
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Réservation introuvable !"));
 
-        // 2. Changer le statut
         reservation.setStatus("CONFIRMED");
-
-        // 3. Sauvegarder
         reservationRepository.save(reservation);
     }
 
-    // Endpoint pour consulter une réservation par son ID
+    // ---------------------------------------------------------
+    // 4. CONSULTER UNE RÉSERVATION (Pour vérifier le statut)
+    // ---------------------------------------------------------
     @GetMapping("/{id}")
     public Reservation getReservation(@PathVariable Long id) {
         return reservationRepository.findById(id)
