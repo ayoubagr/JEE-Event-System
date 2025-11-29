@@ -19,6 +19,9 @@ public class ReservationController {
     @Autowired
     private NotificationRestClient notificationRestClient;
 
+    @Autowired
+    private UserRestClient userRestClient;
+
     // URL du service événement (via Eureka)
     private final String EVENT_SERVICE_URL = "http://event-service/events/";
 
@@ -71,26 +74,28 @@ public class ReservationController {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Réservation introuvable !"));
 
-        // Mise à jour du statut
         reservation.setStatus("CONFIRMED");
         reservationRepository.save(reservation);
 
-        // --- DÉBUT CODE BONUS : ENVOI NOTIFICATION ---
+        // --- CODE NOTIFICATION DYNAMIQUE ---
         try {
-            // Création du message
-            NotificationRequest req = new NotificationRequest();
-            req.setEmail("client_user_" + reservation.getUserId() + "@gmail.com");
-            req.setMessage("Félicitations ! Votre réservation N°" + reservation.getId() + " est validée.");
+            // A. On appelle le User-Service pour récupérer l'email réel
+            AppUser user = userRestClient.getUserById(reservation.getUserId());
 
-            // Appel au micro-service Notification via OpenFeign
+            // B. On prépare la notification
+            NotificationRequest req = new NotificationRequest();
+
+            // C. On utilise l'email récupéré du User-Service !
+            req.setEmail(user.getEmail());
+
+            req.setMessage("Bonjour " + user.getUsername() + ", votre réservation N°" + reservation.getId() + " est validée !");
+
+            // D. On envoie
             notificationRestClient.sendNotification(req);
 
         } catch (Exception e) {
-            // Important : On met un try-catch pour ne pas bloquer la confirmation
-            // si le service de notification est en panne.
-            System.err.println("Erreur lors de l'envoi de la notification : " + e.getMessage());
+            System.err.println("Erreur notification : " + e.getMessage());
         }
-        // --- FIN CODE BONUS ---
     }
 
     // ---------------------------------------------------------
