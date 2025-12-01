@@ -7,4 +7,5 @@ public class EventDTO {
     private Long id;
     private String nom;
     private int nombreTicketsDisponibles;
+    private Double prix; // <-- Ajoute ça
 }

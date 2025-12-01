@@ -30,4 +30,16 @@ public class UserController {
     public AppUser createUser(@RequestBody AppUser user) {
         return userRepository.save(user);
     }
+
+    @PostMapping("/login")
+    public AppUser login(@RequestBody AppUser loginRequest) {
+        // Chercher par username (Ajouter findByUsername dans le Repo)
+        AppUser user = userRepository.findByUsername(loginRequest.getUsername());
+
+        if (user != null && user.getPassword().equals(loginRequest.getPassword())) {
+            return user; // Connexion réussie
+        } else {
+            throw new RuntimeException("Mauvais identifiants");
+        }
+    }
 }

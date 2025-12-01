@@ -32,32 +32,50 @@ public class ReservationController {
     @CircuitBreaker(name = "eventService", fallbackMethod = "fallbackReserver")
     public Reservation reserver(@RequestBody Reservation reservation) {
 
-        // ÉTAPE A : Appel au Micro-service Event
+        // 1. Récupérer l'événement
         EventDTO event = restTemplate.getForObject(EVENT_SERVICE_URL + reservation.getEventId(), EventDTO.class);
+        if (event == null) throw new RuntimeException("Événement inconnu");
 
-        // ÉTAPE B : Vérifications Métier
-        if (event == null) {
-            throw new RuntimeException("Événement introuvable !");
-        }
-
+        // 2. RÈGLE MÉTIER : Vérification Stock
         if (event.getNombreTicketsDisponibles() < reservation.getNombrePlaces()) {
-            throw new RuntimeException("Désolé, plus assez de places !");
+            throw new RuntimeException("Plus assez de places !");
         }
 
-        // ÉTAPE C : Sauvegarde en base locale (PENDING)
-        reservation.setStatus("PENDING");
-        Reservation savedReservation = reservationRepository.save(reservation);
+        // 3. RÈGLE MÉTIER : Max 4 tickets par personne
+        int dejaReserve = reservationRepository.countPlacesByUserAndEvent(reservation.getUserId(), reservation.getEventId());
 
-        // ÉTAPE D : Mise à jour du stock dans l'autre service (Appel PUT)
+        if (dejaReserve + reservation.getNombrePlaces() > 4) {
+            throw new RuntimeException("Limite atteinte ! Vous avez déjà " + dejaReserve + " places. Max 4 autorisées.");
+        }
+
+        // 4. CALCUL AUTOMATIQUE DU PRIX
+        double total = event.getPrix() * reservation.getNombrePlaces();
+        reservation.setMontantTotal(total);
+
+        // 5. Sauvegarde et Décrémentation
+        reservation.setStatus("PENDING");
+        Reservation saved = reservationRepository.save(reservation);
+
         restTemplate.put(EVENT_SERVICE_URL + reservation.getEventId() + "/decrement?count=" + reservation.getNombrePlaces(), null);
 
-        return savedReservation;
+        return saved;
     }
 
     // ---------------------------------------------------------
     // 2. MÉTHODE DE SECOURS (FALLBACK)
     // ---------------------------------------------------------
+    // ---------------------------------------------------------
+    // 2. MÉTHODE DE SECOURS (FALLBACK) - VERSION INTELLIGENTE
+    // ---------------------------------------------------------
     public Reservation fallbackReserver(Reservation reservation, Throwable t) {
+
+        // CAS 1 : Si c'est une règle métier qu'on a levée nous-mêmes (ex: Limite, Stock...)
+        // On relance l'erreur pour que Postman l'affiche (Erreur 500)
+        if (t.getMessage() != null && (t.getMessage().contains("Limite atteinte") || t.getMessage().contains("Plus assez de places") || t.getMessage().contains("inconnu"))) {
+            throw new RuntimeException(t.getMessage());
+        }
+
+        // CAS 2 : C'est une vraie panne technique (Event-Service est down)
         Reservation r = new Reservation();
         r.setUserId(reservation.getUserId());
         r.setEventId(reservation.getEventId());

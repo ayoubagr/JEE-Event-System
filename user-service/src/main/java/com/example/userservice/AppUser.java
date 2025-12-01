@@ -9,14 +9,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
+@Data @NoArgsConstructor @AllArgsConstructor
 public class AppUser {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     private String username;
+
+    private String password; // Nouveau
+    private String role;     // Nouveau (Ex: "USER", "ADMIN")
     private String email;
-    private String role; // ex: USER, ADMIN
 }

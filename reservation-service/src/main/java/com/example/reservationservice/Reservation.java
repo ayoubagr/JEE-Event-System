@@ -11,11 +11,12 @@ import lombok.NoArgsConstructor;
 @Entity
 @Data @NoArgsConstructor @AllArgsConstructor
 public class Reservation {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private Long userId;    // L'ID de l'utilisateur qui réserve
-    private Long eventId;   // L'ID de l'événement
+    private Long userId;
+    private Long eventId;
     private int nombrePlaces;
-    private String status;  // EX: PENDING, CONFIRMED
+    private String status;
+
+    private Double montantTotal; // Nouveau : Calculé automatiquement
 }

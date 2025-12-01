@@ -35,4 +35,25 @@ public class EventController {
         event.setNombreTicketsDisponibles(event.getNombreTicketsDisponibles() - count);
         eventRepository.save(event);
     }
+
+    // Modification d'un événement
+    @PutMapping("/{id}")
+    public Event updateEvent(@PathVariable Long id, @RequestBody Event eventDetails) {
+        Event event = eventRepository.findById(id).orElseThrow();
+
+        event.setNom(eventDetails.getNom());
+        event.setLieu(eventDetails.getLieu());
+        event.setPrix(eventDetails.getPrix());
+        event.setOrganisateur(eventDetails.getOrganisateur());
+        event.setParticipants(eventDetails.getParticipants());
+        // On ne touche pas au stock ici, c'est géré par les réservations
+
+        return eventRepository.save(event);
+    }
+
+    // Suppression
+    @DeleteMapping("/{id}")
+    public void deleteEvent(@PathVariable Long id) {
+        eventRepository.deleteById(id);
+    }
 }
