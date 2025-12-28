@@ -7,6 +7,7 @@ import org.springframework.web.client.RestTemplate;
 
 @RestController
 @RequestMapping("/reservations")
+@CrossOrigin(origins = "http://localhost:4200") // <--- AJOUTEZ CETTE LIGNE
 public class ReservationController {
 
     @Autowired

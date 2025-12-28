@@ -7,6 +7,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/users")
+@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"}, allowCredentials = "true")
 public class UserController {
 
     @Autowired
@@ -25,15 +26,15 @@ public class UserController {
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable avec l'ID : " + id));
     }
 
-    // 3. Créer un nouvel utilisateur
+    // 3. Créer un nouvel utilisateur (Register)
     @PostMapping
     public AppUser createUser(@RequestBody AppUser user) {
         return userRepository.save(user);
     }
 
+    // 4. Login
     @PostMapping("/login")
     public AppUser login(@RequestBody AppUser loginRequest) {
-        // Chercher par username (Ajouter findByUsername dans le Repo)
         AppUser user = userRepository.findByUsername(loginRequest.getUsername());
 
         if (user != null && user.getPassword().equals(loginRequest.getPassword())) {

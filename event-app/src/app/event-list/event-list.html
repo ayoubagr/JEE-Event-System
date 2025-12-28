@@ -1,0 +1,27 @@
+<div class="container" style="padding: 20px; font-family: sans-serif;">
+  <h2 style="color: #333;">📅 Liste des Événements</h2>
+
+  <ng-container *ngIf="events$ | async as events; else loading">
+
+    <p *ngIf="events.length === 0">Aucun événement trouvé.</p>
+
+    <div *ngFor="let event of events"
+         style="border: 1px solid #ddd; margin-bottom: 15px; padding: 15px; border-radius: 8px; background: #f9f9f9;">
+
+      <h3 style="margin-top: 0; color: #0056b3;">{{ event.nom }}</h3>
+
+      <p><strong>📍 Lieu :</strong> {{ event.lieu }}</p>
+      <p><strong>💰 Prix :</strong> {{ event.prix }} DH</p>
+      <p><strong>🎟️ Tickets dispo :</strong> {{ event.nombreTicketsDisponibles }}</p>
+
+      <button (click)="onReserve(event.id)"
+              style="background-color: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 14px;">
+        Réserver ma place
+      </button>
+    </div>
+  </ng-container>
+
+  <ng-template #loading>
+    <p>Chargement des événements en cours...</p>
+  </ng-template>
+</div>
